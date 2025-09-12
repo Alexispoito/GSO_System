@@ -10,8 +10,8 @@ from .forms import InventoryItemForm
 # -------------------------------
 @login_required
 def gso_inventory(request):
-    category = request.GET.get("category", None)
-    query = request.GET.get("q", None)  # search keyword
+    category = request.GET.get("category")
+    query = request.GET.get("q")
 
     items = InventoryItem.objects.all()
 
@@ -24,11 +24,10 @@ def gso_inventory(request):
         items = items.filter(
             Q(name__icontains=query) |
             Q(category__icontains=query) |
-            Q(description__icontains=query)  # only if you have a description field
+            Q(description__icontains=query)
         )
 
     items = items.order_by("name")
-
     categories = InventoryItem.objects.values_list("category", flat=True).distinct()
 
     return render(request, "gso_office/inventory/gso_inventory.html", {
@@ -49,7 +48,6 @@ def add_inventory_item(request):
         form = InventoryItemForm(request.POST)
         if form.is_valid():
             form.save()
-            return redirect("gso_inventory")
     return redirect("gso_inventory")
 
 
@@ -63,17 +61,15 @@ def update_inventory_item(request, item_id):
         form = InventoryItemForm(request.POST, instance=item)
         if form.is_valid():
             form.save()
-            return redirect("gso_inventory")
     return redirect("gso_inventory")
 
 
 # -------------------------------
-# Remove Item
+# Delete Item
 # -------------------------------
 @login_required
 def remove_inventory_item(request, item_id):
     item = get_object_or_404(InventoryItem, id=item_id)
     if request.method == "POST":
         item.delete()
-        return redirect("gso_inventory")
     return redirect("gso_inventory")
