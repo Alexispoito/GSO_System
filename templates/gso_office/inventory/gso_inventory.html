@@ -1,0 +1,278 @@
+{% extends "gso_office/gso_base_dashboard.html" %}
+
+{% block title %}Inventory{% endblock %}
+
+{% block main_content %}
+<div class="header d-flex align-items-center justify-content-between">
+    <h1 class="page-title">INVENTORY</h1>
+
+    <div class="d-flex gap-2">
+        <!-- Search -->
+        <form method="get" class="d-flex gap-2">
+            <input 
+                type="text" 
+                name="q" 
+                class="form-control form-control-sm" 
+                placeholder="Search items..." 
+                value="{{ search_query|default:'' }}"
+                autocomplete="off"
+            >
+
+            <!-- ✅ Filter by Category instead of Unit -->
+            <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All Categories</option>
+                {% for c in categories %}
+                    <option value="{{ c }}" {% if request.GET.category == c %}selected{% endif %}>
+                        {{ c }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <!-- Add Material Button -->
+        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addMaterialModal">
+            + Add Material
+        </button>
+    </div>
+</div>
+
+<!-- Inventory Table -->
+<div class="table-container mt-3">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>NO.</th>
+                <th>MATERIAL NAME</th>
+                <th>QUANTITY</th>
+                <th>CATEGORY</th> <!-- ✅ Added category header -->
+                <th>ACTION</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for item in inventory_items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.quantity }} {{ item.unit }}</td>
+                <td>{{ item.category|default:"—" }}</td> <!-- ✅ Show category -->
+                <td class="d-flex gap-2">
+                    <!-- Update Button (opens modal and passes data) -->
+                    <button 
+                        class="btn btn-sm btn-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#updateMaterialModal"
+                        data-id="{{ item.id }}"
+                        data-name="{{ item.name }}"
+                        data-description="{{ item.description|default_if_none:'' }}"
+                        data-quantity="{{ item.quantity }}"
+                        data-unit="{{ item.unit }}"
+                        data-category="{{ item.category|default_if_none:'' }}"
+                        data-owned_by="{{ item.owned_by }}">
+                        Update
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button 
+                        type="button"
+                        class="btn btn-sm btn-danger"
+                        data-bs-toggle="modal"
+                        data-bs-target="#deleteMaterialModal"
+                        data-action="{% url 'remove_inventory_item' item.id %}"
+                        data-name="{{ item.name }}">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No materials in inventory</td> <!-- ✅ Adjust colspan -->
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Material Modal -->
+<div class="modal fade" id="addMaterialModal" tabindex="-1" aria-labelledby="addMaterialModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{% url 'add_inventory_item' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="addMaterialModalLabel">Add New Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="material_name" class="form-label">Material Name</label>
+            <input type="text" id="material_name" name="name" class="form-control" required autocomplete="off">
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea id="description" name="description" class="form-control"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input type="number" id="quantity" name="quantity" class="form-control" min="1" required autocomplete="off">
+          </div>
+
+          <div class="mb-3">
+            <label for="unit" class="form-label">Unit</label>
+            <select id="unit" name="unit" class="form-select">
+              <option value="pcs">pcs</option>
+              <option value="liters">liters</option>
+              <option value="meters">meters</option>
+              <option value="boxes">boxes</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="category" class="form-label">Category</label>
+            <input type="text" id="category" name="category" class="form-control" autocomplete="off">
+          </div>
+
+          <div class="mb-3">
+            <label for="owned_by" class="form-label">Owned By</label>
+            <select id="owned_by" name="owned_by" class="form-select">
+              <option value="GSO">GSO</option>
+              <option value="Unit Head">Unit Head</option>
+              <option value="Personnel">Personnel</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success btn-sm">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Update Modal -->
+<div class="modal fade" id="updateMaterialModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <!-- NOTE: action will be set by JS -->
+      <form id="updateMaterialForm" method="post">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Update Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="id" id="update_id">
+
+          <div class="mb-3">
+            <label for="update_name" class="form-label">Material Name</label>
+            <input type="text" name="name" id="update_name" class="form-control" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="update_description" class="form-label">Description</label>
+            <textarea name="description" id="update_description" class="form-control"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="update_quantity" class="form-label">Quantity</label>
+            <input type="number" name="quantity" id="update_quantity" class="form-control" min="1" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="update_unit" class="form-label">Unit</label>
+            <input type="text" name="unit" id="update_unit" class="form-control">
+          </div>
+
+          <div class="mb-3">
+            <label for="update_category" class="form-label">Category</label>
+            <input type="text" name="category" id="update_category" class="form-control">
+          </div>
+
+          <div class="mb-3">
+            <label for="update_owned_by" class="form-label">Owned By</label>
+            <select name="owned_by" id="update_owned_by" class="form-select">
+              <option value="GSO">GSO</option>
+              <option value="Unit Head">Unit Head</option>
+              <option value="Personnel">Personnel</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteMaterialModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="deleteMaterialForm" method="post">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Delete Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete <strong id="delete_item_name"></strong>?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Yes, Delete</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // ✅ Update Modal
+    const updateModal = document.getElementById("updateMaterialModal");
+    const updateForm = document.getElementById("updateMaterialForm");
+
+    updateModal.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        // Get values from button
+        const actionUrl = button.getAttribute("data-action") || `/update/${button.dataset.id}/`;
+        updateForm.action = actionUrl;
+
+        // Fill inputs
+        document.getElementById("update_name").value = button.dataset.name || "";
+        document.getElementById("update_description").value = button.dataset.description || "";
+        document.getElementById("update_quantity").value = button.dataset.quantity || "";
+        document.getElementById("update_unit").value = button.dataset.unit || "";
+        document.getElementById("update_category").value = button.dataset.category || "";
+        document.getElementById("update_owned_by").value = button.dataset.owned_by || "GSO";
+    });
+
+    // ✅ Delete Modal
+    const deleteModal = document.getElementById("deleteMaterialModal");
+    const deleteForm = document.getElementById("deleteMaterialForm");
+    const deleteName = document.getElementById("delete_item_name");
+
+    deleteModal.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        // Use data-action for more reliable URL
+        const actionUrl = button.getAttribute("data-action") || `/remove/${button.dataset.id}/`;
+        deleteForm.action = actionUrl;
+        deleteName.textContent = button.dataset.name || "";
+    });
+});
+</script>
+
+{% endblock %}
