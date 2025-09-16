@@ -6,7 +6,7 @@ from .forms import InventoryItemForm
 
 
 # -------------------------------
-# GSO Inventory (List + Search + Filter)
+# GSO Inventory (List + Search + Filter + Inline Edit/Delete)
 # -------------------------------
 @login_required
 def gso_inventory(request):
@@ -30,12 +30,16 @@ def gso_inventory(request):
     items = items.order_by("name")
     categories = InventoryItem.objects.values_list("category", flat=True).distinct()
 
+    # Create a dictionary of forms per item (for edit modals)
+    forms_per_item = {item.id: InventoryItemForm(instance=item) for item in items}
+
     return render(request, "gso_office/inventory/gso_inventory.html", {
         "inventory_items": items,
         "categories": categories,
         "selected_category": category,
         "search_query": query,
-        "form": InventoryItemForm(),
+        "form": InventoryItemForm(),          # for Add Material modal
+        "forms_per_item": forms_per_item,     # for Edit modals
     })
 
 
@@ -52,7 +56,7 @@ def add_inventory_item(request):
 
 
 # -------------------------------
-# Update Item
+# Update Item (handled via modal)
 # -------------------------------
 @login_required
 def update_inventory_item(request, item_id):
@@ -65,7 +69,7 @@ def update_inventory_item(request, item_id):
 
 
 # -------------------------------
-# Delete Item
+# Delete Item (handled via modal)
 # -------------------------------
 @login_required
 def remove_inventory_item(request, item_id):
